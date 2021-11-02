@@ -174,14 +174,17 @@ test:
     # - cmd: docker exec C0 ping 192.168.1.2 -I 192.168.0.2
     # - cmd: docker exec C0 ping 192.168.1.20 -I 192.168.0.20
     # - cmd: docker exec R5 sysctl -w net.ipv4.ip_forward=0
-      - cmd: docker exec R0 tcpdump -nni net0 -w /tmp/R0_net0.pcap -W1 -G180 & 
-      - cmd: docker exec R2 tcpdump -nni net1 -w /tmp/R2_net1.pcap -W1 -G180 & 
-      - cmd: docker exec R4 tcpdump -nni net0 -w /tmp/R4_net0.pcap -W1 -G180 & 
-      - cmd: docker exec R5 tcpdump -nni net0 -w /tmp/R5_net0.pcap -W1 -G180 & 
-      - cmd: docker exec R3 tcpdump -nni net2 -w /tmp/R3_net2.pcap -W1 -G180 & 
-      - cmd: docker exec R3 tcpdump -nni net0 -w /tmp/R3_net0.pcap -W1 -G180 & 
-      - cmd: docker exec R1 tcpdump -nni net0 -w /tmp/R1_net0.pcap -W1 -G180 & 
-      - cmd: docker exec C1 tcpdump -nni net0 -w /tmp/C1_net0.pcap -W1 -G180 & 
+      - cmd: docker exec R0 tcpdump -nni net0 -w /tmp/R0_net0.pcap -W1 -G90 & 
+      - cmd: docker exec R2 tcpdump -nni net1 -w /tmp/R2_net1.pcap -W1 -G90 & 
+      - cmd: docker exec R2 tcpdump -nni net0 -w /tmp/R2_net0.pcap -W1 -G90 & 
+      - cmd: docker exec R2 tcpdump -nni net2 -w /tmp/R2_net2.pcap -W1 -G90 & 
+      - cmd: docker exec R4 tcpdump -nni net0 -w /tmp/R4_net0.pcap -W1 -G90 & 
+      - cmd: docker exec R4 tcpdump -nni net1 -w /tmp/R4_net1.pcap -W1 -G90 & 
+      - cmd: docker exec R5 tcpdump -nni net0 -w /tmp/R5_net0.pcap -W1 -G90 & 
+      - cmd: docker exec R3 tcpdump -nni net2 -w /tmp/R3_net2.pcap -W1 -G90 & 
+      - cmd: docker exec R3 tcpdump -nni net0 -w /tmp/R3_net0.pcap -W1 -G90 & 
+      - cmd: docker exec R1 tcpdump -nni net0 -w /tmp/R1_net0.pcap -W1 -G90 & 
+      - cmd: docker exec C1 tcpdump -nni net0 -w /tmp/C1_net0.pcap -W1 -G90 & 
 
       # R0
       - cmd: docker exec R0 sysctl -w net.mpls.conf.lo.input=1 > /dev/null
