@@ -38,6 +38,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      # 使用可能なLabelの最大値を定義
       - cmd: sysctl -w net.mpls.platform_labels=1048575
       - cmd: >-
           vtysh -c 'conf t'
@@ -65,6 +66,12 @@ node_configs:
           -c ' segment-routing node-msd 8'
           -c ' segment-routing prefix 10.255.0.1/32 index 1001'
           -c 'exit'
+      # passive-interface lo 
+      #   > passive-interfaceコマンドを使うと、RIPの送信やOSPFのHelloパケット送信を停止出来る．
+      # capability opaque 
+      #   > Opaque LSAのサポートを有効に．
+      # 各ルータが使用可能なグローバルに意味のあるSID(Node SIDやPrefix SID等)の範囲をSRGB(Segment Routing Global Block)と呼ぶ．
+      # Prefix SIDの20301をAbsolute Value、SRGBの先頭のSIDからの差分である4301をIndexと呼ぶ．
 
   - name: R2
     cmds:
