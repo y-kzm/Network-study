@@ -63,7 +63,16 @@ node_configs:
           -c 'ip route 10.255.0.1 10.0.0.1 net0'
 
 test:
-    cmds:
-      - cmd: docker exec R1 tcpdump -nni net0 -w /tmp/R1_net0.pcap -W1 -G60 &
-      - cmd: docker exec R2 tcpdump -nni net0 -w /tmp/R2_net0.pcap -W1 -G60 &
+    - name: pcap
+      cmds:
+        - cmd: docker exec R1 tcpdump -nni net0 -w /tmp/R1_net0.pcap -W1 -G60 &
+        - cmd: docker exec R2 tcpdump -nni net0 -w /tmp/R2_net0.pcap -W1 -G60 &
+    - name: pingv6
+      cmds:
+        - cmd: docker exec R1 ping -c3 2001::2
+        - cmd: docker exec R2 ping -c3 2001::1
+    - name: pingv4
+      cmds:
+        - cmd: docker exec R1 ping -c3 10.0.0.2
+        - cmd: docker exec R2 ping -c3 10.0.0.1
 
