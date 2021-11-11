@@ -10,7 +10,7 @@ nodes:
   - name: R1
     image: slankdev/frr
     interfaces:
-    - { name: net0, type: direct, args: R1#net0 }
+    - { name: net0, type: direct, args: R2#net0 }
     - { name: net1, type: direct, args: R4#net0 }
   - name: R2
     image: slankdev/frr
