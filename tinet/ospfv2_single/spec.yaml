@@ -41,6 +41,9 @@ node_configs:
       - cmd: ip addr add 192.168.100.1/24 dev net1
       - cmd: >-
           vtysh -c "conf t"
+          -c "interface lo"
+          -c " ip address 1.1.1.1/32"
+          -c "exit"
           -c "router ospf"
           -c " network 172.16.10.0/24 area 0"
           -c " network 192.168.100.0/24 area 0"
@@ -51,6 +54,9 @@ node_configs:
       - cmd: ip addr add 192.168.150.1/24 dev net1
       - cmd: >-
           vtysh -c "conf t"          
+          -c "interface lo"
+          -c " ip address 2.2.2.2/32"
+          -c "exit"
           -c "router ospf"
           -c " network 192.168.100.0/24 area 0"
           -c " network 192.168.150.0/24 area 0"
@@ -61,6 +67,9 @@ node_configs:
       - cmd: ip addr add 172.16.30.1/24 dev net1
       - cmd: >-
           vtysh -c "conf t"
+          -c "interface lo"
+          -c " ip address 3.3.3.3/32"
+          -c "exit"
           -c "router ospf"
           -c " network 172.16.30.0/24 area 0"
           -c " network 192.168.150.0/24 area 0"
