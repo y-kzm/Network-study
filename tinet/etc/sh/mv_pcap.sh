@@ -1,15 +1,17 @@
 #!/bin/bash
-echo "Move pcap."
-echo "Run:      " $0		#スクリプト名を表示
-echo "Router:   " $1		#1つ目の引数を表示
-echo "Interace: " $2		#2つ目の引数を表示
+echo "-------------------------------"
+echo "Run:                      " $0		# スクリプト名
+echo "Node Type:                " $1        # R, C, S, ...
+echo "Index of Node :           " $2		# NodeのIndex
+echo "Total Number of Interace: " $3		# Interfaceの数
 
-if [ $# != 2 ]; then
-    echo usage: ./mv_pcap.sh Router_No Num_of_Interface
+if [ $# != 3 ]; then
+    echo usage: ./mv_pcap.sh R 1 3
     exit 1
 else
-    for ((i=0; i<$2-1; i++))
+    for ((i=0; i<$3; i++))
     do
-        docker cp R$1:/tmp/R$1_net$i.pcap pcap/R$1_net$i.pcap  
+        docker cp $1$2:/tmp/$1$2_net$i.pcap pcap/$1$2_net$i.pcap
+        echo ">> Mvcap $1$2 net$i."
     done
 fi
