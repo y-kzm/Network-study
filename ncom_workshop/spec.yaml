@@ -28,8 +28,9 @@ nodes:
     image: slankdev/frr
     interfaces:
       - { name: net0, type: bridge, args: Bridge0 }
-      #- { name: eth0, type: phys}
-  - name: R6
+      # インターネットへの接続性を得る
+      - { name: eno1, type: phys } 
+  - name: R6  # クライアント
     image: slankdev/frr
     interfaces:
       - { name: net0, type: bridge, args: Bridge1 }
@@ -76,22 +77,21 @@ node_configs:
           -c ' network 10.0.0.1/32 area 0.0.0.0'
           -c 'router bgp 65002'
           -c ' bgp router-id 10.0.0.1'
+          -c ' neighbor 10.0.0.2 remote-as 65002'   
+          -c ' neighbor 10.0.0.2 update-source lo'  
+          -c ' neighbor 10.0.0.3 remote-as 65002'   
+          -c ' neighbor 10.0.0.3 update-source lo'
+          -c ' neighbor 10.0.0.4 remote-as 65002' 
+          -c ' neighbor 10.0.0.4 update-source lo'
           -c ' neighbor 10.0.255.1 remote-as 65001'
           -c ' address-family ipv4 unicast'
           -c '  network 10.0.0.0/8'
           -c '  network 192.168.0.0/16'
           -c ' exit-address-family'
-          -c 'router bgp 65002'
-          -c ' bgp router-id 10.0.0.1'
-          -c ' neighbor 10.0.0.2 remote-as 65002'
-          -c ' neighbor 10.0.0.2 update-source lo'
-          -c ' neighbor 10.0.0.3 remote-as 65002'
-          -c ' neighbor 10.0.0.3 update-source lo'
-          -c ' neighbor 10.0.0.4 remote-as 65002'
-          -c ' neighbor 10.0.0.4 update-source lo'
           -c 'exit'
   - name: R2
     cmds:
+      # VRRP によるdefault routeの冗長化
       - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf 
       - cmd: ip link add vrrp_r2 link net3 addrgenmode random type macvlan mode bridge
       - cmd: ip link set dev vrrp_r2 address 00:00:5e:00:01:05
@@ -128,6 +128,7 @@ node_configs:
           -c ' network 10.0.1.4/30 area 0.0.0.0'
           -c ' network 10.0.1.20/30 area 0.0.0.0'
           -c ' network 10.0.0.2/32 area 0.0.0.0'
+          -c 'exit'
           -c 'router bgp 65002'
           -c ' bgp router-id 10.0.0.2'
           -c ' neighbor 10.0.0.1 remote-as 65002'
@@ -166,20 +167,20 @@ node_configs:
           -c ' network 10.0.0.3/32 area 0.0.0.0'
           -c 'router bgp 65002'
           -c ' bgp router-id 10.0.0.3'
-          -c ' neighbor 10.0.255.1 remote-as 65001'
+          -c ' neighbor 10.0.0.1 remote-as 65002'   
+          -c ' neighbor 10.0.0.1 update-source lo'  
+          -c ' neighbor 10.0.0.2 remote-as 65002'   
+          -c ' neighbor 10.0.0.2 update-source lo'
+          -c ' neighbor 10.0.0.4 remote-as 65002'  
+          -c ' neighbor 10.0.0.4 update-source lo'
+          -c 'exit'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.3'
+          -c ' neighbor 10.0.255.1 remote-as 65001' 
           -c ' address-family ipv4 unicast'
           -c '  network 10.0.0.0/8'
           -c '  network 192.168.0.0/16'
           -c ' exit-address-family'
-          -c 'router bgp 65002'
-          -c ' bgp router-id 10.0.0.3'
-          -c ' neighbor 10.0.0.1 remote-as 65002'
-          -c ' neighbor 10.0.0.1 update-source lo'
-          -c ' neighbor 10.0.0.2 remote-as 65002'
-          -c ' neighbor 10.0.0.2 update-source lo'
-          -c ' neighbor 10.0.0.4 remote-as 65002'
-          -c ' neighbor 10.0.0.4 update-source lo'
-          -c 'exit'
   - name: R4
     cmds:
       - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf 
@@ -225,6 +226,9 @@ node_configs:
           -c 'exit'
   - name: R5
     cmds:
+      # Host Interface の設定
+      - cmd: ip addr add 172.17.0.5/16 dev eno1
+      - cmd: ip route add default via 10.0.0.1 dev eno1
       - cmd: /usr/lib/frr/frr start 
       - cmd: >-
           vtysh -c 'conf t'
@@ -236,16 +240,12 @@ node_configs:
           -c 'exit'
           -c 'router bgp 65001'
           -c ' bgp router-id 10.0.0.5'
-          -c ' neighbor 10.0.255.2 remote-as 65002'
-          -c ' neighbor 10.0.255.3 remote-as 65002'
+          -c ' neighbor 10.0.255.2 remote-as 65002'  
+          -c ' neighbor 10.0.255.3 remote-as 65002'  
           -c ' address-family ipv4 unicast'
-          -c '  redistribute connected'
-          -c ' exit-ddress-family'
+          -c '  redistribute kernel' 
+          -c ' exit-address-family'
           -c 'exit'
-      #- cmd: /usr/share/openvswitch/scripts/ovs-ctl start
-      #- cmd: ovs-vsctl add-br ovs0
-      #- cmd: ovs-vsctl add-port ovs0 eth0 tag=1
-      #- cmd: ovs-vsctl add-port ovs0 eno1 tag=1
   - name: R6
     cmds:
       - cmd: /usr/lib/frr/frr start 
@@ -257,6 +257,7 @@ node_configs:
           -c 'interface net0'
           -c ' ip address 192.168.1.4/24'
           -c 'exit'
+      # 192.168.1.1がVIP
       - cmd: ip route add default via 192.168.1.1 dev net0
 
 
