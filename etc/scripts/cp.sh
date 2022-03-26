@@ -6,13 +6,14 @@ echo "Index of Node :           " $2		# NodeのIndex
 echo "Total Number of Interace: " $3		# Interfaceの数
 
 if [ $# != 3 ]; then
-    echo usage: ./pcap.sh R 1 3
+    echo usage: ./cp.sh [Node] [Indewx] [IfNum]
     exit 1
 else
     for ((i=0; i<$3; i++))
     do
-        # -nn: そのまま表示 -i: Interface -w: ファイル出力 -W: ローテート回数 -G: 間隔時間
-        docker exec $1$2 tcpdump -nni net$i -s 65535 -w /tmp/$1$2_net$i.pcap -W1 -G60 &
-        echo ">> Pcap $1$2 net$i."
+        docker cp $1$2:/tmp/$1$2_net$i.pcap pcap/$1$2_net$i.pcap
+        echo ">> Cp $1$2 net$i."
     done
 fi
+
+exit 0
