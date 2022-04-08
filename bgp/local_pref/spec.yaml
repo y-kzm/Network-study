@@ -1,0 +1,302 @@
+nodes:
+    - name: C1
+      image: slankdev/ubuntu:18.04
+      interfaces:
+        - { name: net0, type: direct, args: R1#net2 }
+    - name: R1
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R2#net0 }
+        - { name: net1, type: direct, args: R3#net0 }
+        - { name: net2, type: direct, args: C1#net0 }
+    - name: R2
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R1#net0 }
+        - { name: net1, type: direct, args: R4#net0 }
+    - name: R3
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R1#net1 }
+        - { name: net1, type: direct, args: R5#net0 }
+    - name: R4
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R2#net1 }
+        - { name: net1, type: direct, args: R6#net0 }
+        - { name: net2, type: direct, args: R5#net2 }
+    - name: R5
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R3#net1 }
+        - { name: net1, type: direct, args: R6#net1 }
+        - { name: net2, type: direct, args: R4#net2 }
+    - name: R6
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R4#net1 }
+        - { name: net1, type: direct, args: R5#net1 }
+
+node_configs:
+    - name: C1
+      cmds:
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: ip addr add 192.168.10.1/24 dev net0
+        - cmd: ip route add default via 192.168.10.2
+    - name: R1
+      cmds:
+        - cmd: tcpdump -nni net0 -w /tmp/R1-net0.pcap &
+        - cmd: tcpdump -nni net1 -w /tmp/R1-net1.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 1.1.1.1/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.255.1.1/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.255.2.1/24'
+            -c 'exit'
+            -c 'interface net2'
+            -c ' ip address 192.168.10.2/24'
+            -c 'exit'
+            -c 'ip route 2.2.2.2/32 10.255.1.2'
+            -c 'ip route 3.3.3.3/32 10.255.2.2'
+            -c 'router bgp 65001'
+            -c ' no bgp ebgp-requires-polic'
+            -c ' bgp router-id 1.1.1.1'
+            -c ' neighbor 2.2.2.2 remote-as 1' 
+            -c ' neighbor 2.2.2.2 update-source lo'
+            -c ' neighbor 2.2.2.2 ebgp-multihop 2'
+            -c ' neighbor 3.3.3.3 remote-as 2'
+            -c ' neighbor 3.3.3.3 update-source lo'
+            -c ' neighbor 3.3.3.3 ebgp-multihop 2'
+            -c ' address-family ipv4 unicast'
+            -c '  redistribute connected'
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: R2
+      cmds:
+        - cmd: tcpdump -nni net0 -w /tmp/R2-net0.pcap &
+        - cmd: tcpdump -nni net1 -w /tmp/R2-net1.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 2.2.2.2/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.255.1.2/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.255.3.1/24'
+            -c 'exit'
+            -c 'ip route 1.1.1.1/32 10.255.1.1'
+            -c 'ip route 4.4.4.4/32 10.255.3.2'
+            -c 'router bgp 1'
+            -c ' no bgp ebgp-requires-polic'
+            -c ' bgp router-id 2.2.2.2'
+            -c ' neighbor 1.1.1.1 remote-as 65001'
+            -c ' neighbor 1.1.1.1 update-source lo'
+            -c ' neighbor 1.1.1.1 ebgp-multihop 2'
+            -c ' neighbor 4.4.4.4 remote-as 65002'
+            -c ' neighbor 4.4.4.4 update-source lo'
+            -c ' neighbor 4.4.4.4 ebgp-multihop 2'
+            -c ' address-family ipv4 unicast'
+            -c '  redistribute connected' 
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: R3
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R3-net0.pcap &
+        - cmd: tcpdump -i net1 -w /tmp/R3-net1.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 3.3.3.3/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.255.2.2/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.255.4.1/24'
+            -c 'exit'
+            -c 'ip route 1.1.1.1/32 10.255.2.1'
+            -c 'ip route 5.5.5.5/32 10.255.4.2'
+            -c 'router bgp 2'
+            -c ' no bgp ebgp-requires-polic'
+            -c ' bgp router-id 3.3.3.3'
+            -c ' neighbor 1.1.1.1 remote-as 65001'
+            -c ' neighbor 1.1.1.1 update-source lo'
+            -c ' neighbor 1.1.1.1 ebgp-multihop 2'
+            -c ' neighbor 5.5.5.5 remote-as 65002'
+            -c ' neighbor 5.5.5.5 update-source lo'
+            -c ' neighbor 5.5.5.5 ebgp-multihop 2'
+            -c ' address-family ipv4 unicast'
+            -c '  redistribute connected'
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: R4
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R4-net0.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 4.4.4.4/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.255.3.2/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.0.2.1/24'
+            -c 'exit'
+            -c 'interface net2'
+            -c ' ip address 10.0.1.1/24'
+            -c 'exit'
+            -c 'ip route 2.2.2.2/32 10.255.3.1'
+            -c 'router ospf'
+            -c ' network 4.4.4.4/32 area 0.0.0.0'
+            -c ' network 10.0.1.0/24 area 0.0.0.0'
+            -c ' network 10.0.2.0/24 area 0.0.0.0'
+            -c 'exit'
+            -c 'router bgp 65002'
+            -c ' no bgp ebgp-requires-polic'
+            -c ' bgp router-id 4.4.4.4'
+            -c ' neighbor 2.2.2.2 remote-as 1'
+            -c ' neighbor 2.2.2.2 update-source lo'
+            -c ' neighbor 2.2.2.2 ebgp-multihop 2'
+            -c ' neighbor 5.5.5.5 remote-as 65002'
+            -c ' neighbor 5.5.5.5 update-source lo'
+            -c ' neighbor 6.6.6.6 remote-as 65002'
+            -c ' neighbor 6.6.6.6 update-source lo'
+            -c ' address-family ipv4 unicast'
+            -c '  redistribute connected'
+            -c '  redistribute ospf'
+            -c '  neighbor 2.2.2.2 route-map set-localpref in'
+            -c '  neighbor 5.5.5.5 next-hop-self'
+            -c '  neighbor 6.6.6.6 next-hop-self'
+            -c ' exit-address-family'
+            -c 'exit'
+            -c 'route-map set-localpref permit 10'
+            -c ' set local-preference 90'
+            -c 'exit'
+    - name: R5
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R5-net0.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 5.5.5.5/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.255.4.2/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.0.3.1/24'
+            -c 'exit'
+            -c 'interface net2'
+            -c ' ip address 10.0.1.2/24'
+            -c 'exit'
+            -c 'ip route 3.3.3.3/32 10.255.4.1'
+            -c 'router ospf'
+            -c ' network 5.5.5.5/32 area 0.0.0.0'
+            -c ' network 10.0.1.0/24 area 0.0.0.0'
+            -c ' network 10.0.3.0/24 area 0.0.0.0'
+            -c 'exit'
+            -c 'router bgp 65002'
+            -c ' no bgp ebgp-requires-polic'
+            -c ' bgp router-id 5.5.5.5'
+            -c ' neighbor 3.3.3.3 remote-as 2'
+            -c ' neighbor 3.3.3.3 update-source lo'
+            -c ' neighbor 3.3.3.3 ebgp-multihop 2'
+            -c ' neighbor 4.4.4.4 remote-as 65002'
+            -c ' neighbor 4.4.4.4 update-source lo'
+            -c ' neighbor 6.6.6.6 remote-as 65002'
+            -c ' neighbor 6.6.6.6 update-source lo'
+            -c ' address-family ipv4 unicast'
+            -c '  redistribute connected'
+            -c '  redistribute ospf'
+            -c '  neighbor 4.4.4.4 next-hop-self'
+            -c '  neighbor 6.6.6.6 next-hop-self'
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: R6
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R6-net0.pcap &
+        - cmd: tcpdump -i net1 -w /tmp/R6-net1.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv4.ip_forward=1
+        - cmd: sysctl -w net.ipv4.conf.all.rp_filter=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface lo'
+            -c ' ip address 6.6.6.6/32'
+            -c 'exit'
+            -c 'interface net0'
+            -c ' ip address 10.0.2.2/24'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ip address 10.0.3.2/24'
+            -c 'exit'
+            -c 'router ospf'
+            -c ' network 6.6.6.6/32 area 0.0.0.0'
+            -c ' network 10.0.2.0/24 area 0.0.0.0'
+            -c ' network 10.0.3.0/24 area 0.0.0.0'
+            -c 'exit'
+            -c 'router bgp 65002'
+            -c ' bgp router-id 6.6.6.6'
+            -c ' neighbor 4.4.4.4 remote-as 65002'
+            -c ' neighbor 4.4.4.4 update-source lo'
+            -c ' neighbor 5.5.5.5 remote-as 65002'
+            -c ' neighbor 5.5.5.5 update-source lo'
+            -c 'exit'
+
+
+test:
+    - name: link
+      cmds:
+        - cmd: echo '--------------------------------'
+        - cmd: docker exec C1 ping -c2 192.168.10.2
+        - cmd: docker exec R1 ping -c2 192.168.10.1
+        - cmd: docker exec R1 ping -c2 10.255.1.2
+        - cmd: docker exec R1 ping -c2 10.255.2.2
+        - cmd: docker exec R2 ping -c2 10.255.1.1
+        - cmd: docker exec R2 ping -c2 10.255.3.2
+        - cmd: docker exec R3 ping -c2 10.255.2.1
+        - cmd: docker exec R3 ping -c2 10.255.4.2
+        - cmd: docker exec R4 ping -c2 10.255.3.1
+        - cmd: docker exec R4 ping -c2 10.0.1.2
+        - cmd: docker exec R4 ping -c2 10.0.2.2
+        - cmd: docker exec R5 ping -c2 10.255.4.1
+        - cmd: docker exec R5 ping -c2 10.0.1.1
+        - cmd: docker exec R5 ping -c2 10.0.3.2
+        - cmd: docker exec R6 ping -c2 10.0.2.1
+        - cmd: docker exec R6 ping -c2 10.0.3.1
+    - name: ping
+      cmds:
+        - cmd: echo '--------------------------------'
+        - cmd: docker exec R6 ping -c2 5.5.5.5
+        - cmd: echo '--------------------------------'
+        - cmd: docker exec R6 traceroute 5.5.5.5
