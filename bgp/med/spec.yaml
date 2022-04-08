@@ -155,7 +155,7 @@ node_configs:
             -c 'exit'
             -c 'router bgp 65001'
             -c ' no bgp ebgp-requires-polic'
-            -c ' bgp router-id 2.2.2.2'
+            -c ' bgp router-id 3.3.3.3'
             -c ' neighbor 10.255.2.2 remote-as 65002'
             -c ' neighbor 5.5.5.5 remote-as 65001'
             -c ' neighbor 5.5.5.5 update-source lo'
