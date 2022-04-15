@@ -5,4 +5,4 @@
 ![](topo_mc.jpg)
 
 ### １つのクラスタ内に複数のRRを置く場合
-![](topo_nc.jpg)
+![](topo_sc.jpg)
