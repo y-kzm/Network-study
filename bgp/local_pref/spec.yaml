@@ -195,9 +195,12 @@ node_configs:
             -c '  neighbor 6.6.6.6 next-hop-self'
             -c ' exit-address-family'
             -c 'exit'
+            -c 'bgp as-path access-list 1 permit ^1_'
             -c 'route-map set-localpref permit 10'
-            -c ' set local-preference 90'
+            -c ' match as-path 1'
+            -c ' set local-preference 150'
             -c 'exit'
+            -c 'route-map set-localpref permit 20' 
     - name: R5
       cmds:
         - cmd: tcpdump -i net0 -w /tmp/R5-net0.pcap &
@@ -238,10 +241,17 @@ node_configs:
             -c ' address-family ipv4 unicast'
             -c '  redistribute connected'
             -c '  redistribute ospf'
+            -c '  neighbor 3.3.3.3 route-map set-localpref in'
             -c '  neighbor 4.4.4.4 next-hop-self'
             -c '  neighbor 6.6.6.6 next-hop-self'
             -c ' exit-address-family'
             -c 'exit'
+            -c 'bgp as-path access-list 1 permit ^2_'
+            -c 'route-map set-localpref permit 10'
+            -c ' match as-path 1'
+            -c ' set local-preference 200'
+            -c 'exit'
+            -c 'route-map set-localpref permit 20' 
     - name: R6
       cmds:
         - cmd: tcpdump -i net0 -w /tmp/R6-net0.pcap &
