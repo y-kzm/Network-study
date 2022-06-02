@@ -1,4 +1,5 @@
 # Nortification error
+# 一旦保留
 nodes:
     - name: C1
       image: slankdev/ubuntu:18.04

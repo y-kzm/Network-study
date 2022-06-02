@@ -1,0 +1,125 @@
+# R1# sh bgp sum
+# % No BGP neighbors found
+nodes:
+    - name: R1
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R2#net0 }
+        - { name: net1, type: direct, args: C1#net0 }
+        - { name: net2, type: direct, args: C2#net0 }
+    - name: R2
+      image: yykzm/frr:v7.5.1
+      interfaces:
+        - { name: net0, type: direct, args: R1#net0 }
+        - { name: net1, type: direct, args: C3#net0 }
+        - { name: net2, type: direct, args: C4#net0 }
+    - name: C1
+      image: slankdev/ubuntu:18.04
+      interfaces:
+        - { name: net0, type: direct, args: R1#net1 }
+    - name: C2
+      image: slankdev/ubuntu:18.04
+      interfaces:
+        - { name: net0, type: direct, args: R1#net2 }
+    - name: C3
+      image: slankdev/ubuntu:18.04
+      interfaces:
+        - { name: net0, type: direct, args: R2#net1 }
+    - name: C4
+      image: slankdev/ubuntu:18.04
+      interfaces:
+        - { name: net0, type: direct, args: R2#net2 }
+
+node_configs:
+    - name: R1
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R1-net0.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: ip -6 addr add 2001:db8:1000::1/64 dev net
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface net0'
+            -c ' ipv6 address 2001:db8:1::1/64'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ipv6 address 2001:db8:1000::1/64'
+            -c 'exit'
+            -c 'interface net2'
+            -c ' ipv6 address 2001:db8:2000::1/64'
+            -c 'exit'
+            -c 'router bgp 65001'
+            -c ' no bgp default ipv4-unicast'
+            -c ' neighbor 2001:db8:1::2 remote-as 65002'
+            -c ' address-family ipv6 unicast'
+            -c '  neighbor 2001:db8:1::2 active'
+            -c '  redistribute connected'
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: R2
+      cmds:
+        - cmd: tcpdump -i net0 -w /tmp/R2-net0.pcap &
+        - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf
+        - cmd: /usr/lib/frr/frr start
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: >-
+            vtysh -c 'conf t'
+            -c 'interface net0'
+            -c ' ipv6 address 2001:db8:1::2/64'
+            -c 'exit'
+            -c 'interface net1'
+            -c ' ipv6 address 2001:db8:3000::1/64'
+            -c 'exit'
+            -c 'interface net2'
+            -c ' ipv6 address 2001:db8:4000::1/64'
+            -c 'exit'
+            -c 'router bgp 65002'
+            -c ' no bgp default ipv4-unicast'
+            -c ' neighbor 2001:db8:1::1 remote-as 65001'
+            -c ' address-family ipv6 unicast'
+            -c '  neighbor 2001:db8:1::1 active'
+            -c '  redistribute connected'
+            -c ' exit-address-family'
+            -c 'exit'
+    - name: C1
+      cmds:
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: ip -6 addr add 2001:db8:1000::2/64 dev net0
+        - cmd: ip -6 route add default via 2001:db8:1000::1
+    - name: C2
+      cmds:
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: ip -6 addr add 2001:db8:2000::2/64 dev net0
+        - cmd: ip -6 route add default via 2001:db8:2000::1
+    - name: C3
+      cmds:
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: ip -6 addr add 2001:db8:3000::2/64 dev net0
+        - cmd: ip -6 route add default via 2001:db8:3000::1
+    - name: C4
+      cmds:
+        - cmd: sysctl -w net.ipv6.conf.all.forwarding=1
+        - cmd: sysctl -w net.ipv6.conf.all.disable_ipv6=0
+        - cmd: ip -6 addr add 2001:db8:4000::2/64 dev net0
+        - cmd: ip -6 route add default via 2001:db8:4000::1
+
+test:
+    - name: ping
+      cmds:
+        - cmd: echo '--------------------------------'
+        - cmd: docker exec C1 ping -6 -c2 2001:db8:1000::1 
+        - cmd: docker exec C2 ping -6 -c2 2001:db8:2000::1
+        - cmd: docker exec C3 ping -6 -c2 2001:db8:3000::1 
+        - cmd: docker exec C4 ping -6 -c2 2001:db8:4000::1 
+        - cmd: docker exec R1 ping -6 -c2 2001:db8:1000::2 
+        - cmd: docker exec R1 ping -6 -c2 2001:db8:2000::2 
+        - cmd: docker exec R1 ping -6 -c2 2001:db8:1::2 
+        - cmd: docker exec R2 ping -6 -c2 2001:db8:3000::2 
+        - cmd: docker exec R2 ping -6 -c2 2001:db8:4000::2 
+        - cmd: docker exec R2 ping -6 -c2 2001:db8:1::1 
