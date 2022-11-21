@@ -1,0 +1,125 @@
+nodes:
+  - name: Con
+    image: yykzm/ubuntu:18.04-tmp
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com1
+    image: yykzm/ubuntu:18.04-tmp
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com2
+    image: yykzm/ubuntu:18.04-tmp
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com3
+    image: yykzm/ubuntu:18.04-tmp
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com4
+    image: yykzm/ubuntu:18.04-tmp
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+
+switches:
+  - name: SW
+    interfaces:
+      - { name: net0, type: docker, args: Con }
+      - { name: net0, type: docker, args: Com1 }
+      - { name: net0, type: docker, args: Com2 }
+      - { name: net0, type: docker, args: Com3 }
+      - { name: net0, type: docker, args: Com4 }
+
+node_configs:
+  - name: Con
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:2::3/64 dev net0
+
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4 
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+  - name: Com1
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:2::4/64 dev net0
+      - cmd: ip addr add fc00:1::/64 dev lo
+    
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:1::/128 encap seg6local action End dev net0
+
+  - name: Com2
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:4::11/64 dev net0
+      - cmd: ip addr add fc00:2::/64 dev lo
+
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:2::/128 encap seg6local action End dev net0
+
+  - name: Com3
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:4::12/64 dev net0
+      - cmd: ip addr add fc00:3::/64 dev lo
+
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:3::/128 encap seg6local action End dev net0
+
+  - name: Com4
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:5::11/64 dev net0
+      - cmd: ip addr add fc00:4::0/64 dev lo
+      
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+
+      - cmd: ip route add fc00:4::/128 encap seg6local action End dev net0
+
+test:
+  - name: tc
+    cmds:
+      - cmd: docker exec Con tc qdisc add dev net0 root handle 1:0 tbf rate 100mbit burst 25kb limit 250kb
+      - cmd: docker exec Com1 tc qdisc add dev net0 root handle 1:0 tbf rate 100mbit burst 25kb limit 250kb
+      - cmd: docker exec Com2 tc qdisc add dev net0 root handle 1:0 tbf rate 100mbit burst 25kb limit 250kb
+      - cmd: docker exec Com3 tc qdisc add dev net0 root handle 1:0 tbf rate 50mbit burst 25kb limit 250kb
+      - cmd: docker exec Com4 tc qdisc add dev net0 root handle 1:0 tbf rate 100mbit burst 25kb limit 250kb
+  - name: iperf
+    cmds:
+      - cmd: docker exec Com4 iperf3 -s &
+      - cmd: docker exec Con iperf3 -c -u fc00:4::0 -t 60 -b 50M --logfile result.txt &
+  - name: conf
+    cmds:
+      # パスの数分アドレスを追加する必要あり
+      - cmd: docker exec Com1 ip addr add fd00:0:172:16:ffff::1/64 dev net0
+      - cmd: docker exec Com1 ip addr add fd00:0:172:16:ffff::2/64 dev net0 
+      - cmd: docker exec Com1 ip addr add fd00:0:172:16:ffff::3/64 dev net0 
+      # 計測したいパスごとにVRFを用意
+      - cmd: docker exec Com1 bash -c "echo 100 blue >> /etc/iproute2/rt_tables"
+      - cmd: docker exec Com1 bash -c "echo 101 green >> /etc/iproute2/rt_tables"
+      - cmd: docker exec Com1 bash -c "echo 102 red >> /etc/iproute2/rt_tables"
+      # fromでVRF
+      - cmd: docker exec Com1 ip -6 rule add from fd00:0:172:16:ffff::1 table blue 
+      - cmd: docker exec Com1 ip -6 rule add from fd00:0:172:16:ffff::2 table green
+      - cmd: docker exec Com1 ip -6 rule add from fd00:0:172:16:ffff::3 table red 
+      # VRFごとにencapルールを変える
+      - cmd: docker exec Com1 ip route add fc00:4::/64 encap seg6 mode encap segs fc00:2::0 dev net0 table blue
+      - cmd: docker exec Com1 ip route add fc00:4::/64 encap seg6 mode encap segs fc00:3::0 dev net0 table green
+      - cmd: docker exec Com1 ip route add fc00:4::/64 encap seg6 mode encap segs fc00:2::0,fc00:3::0 dev net0 table red

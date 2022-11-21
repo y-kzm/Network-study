@@ -1,0 +1,117 @@
+nodes:
+  - name: Con
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com1
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com2
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com3
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Com4
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+  - name: Dummy
+    image: yykzm/ubuntu:18.04-demo
+    interfaces:
+      - { name: net0, type: bridge, args: SW }
+
+switches:
+  - name: SW
+    interfaces:
+      - { name: net0, type: docker, args: Con }
+      - { name: net0, type: docker, args: Com1 }
+      - { name: net0, type: docker, args: Com2 }
+      - { name: net0, type: docker, args: Com3 }
+      - { name: net0, type: docker, args: Com4 }
+      - { name: net0, type: docker, args: Dummy }
+
+node_configs:
+  - name: Con
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:2::3/64 dev net0
+
+  - name: Com1
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:2::4/64 dev net0
+      - cmd: ip addr add fc00:1::/64 dev lo
+    
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:1::/64 encap seg6local action End dev net0
+      # 測定したいパス分宛先を追加する
+      - cmd: ip route add fc00:4::10/128 encap seg6 mode encap segs fc00:2::0 dev net0 
+      - cmd: ip route add fc00:4::11/128 encap seg6 mode encap segs fc00:3::0 dev net0
+      # 理想
+      #- cmd: ip route add fc00:4::/64 encap seg6 mode encap segs fc00:2::0 dev net0 table blue
+      #- cmd: ip route add fc00:4::/64 encap seg6 mode encap segs fc00:3::0 dev net0 table green
+
+  - name: Com2
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:4::11/64 dev net0
+      - cmd: ip addr add fc00:2::/64 dev lo
+
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4
+      - cmd: ip route add fc00:3::/64 via fd00:0:172:16:4::12 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:2::/128 encap seg6local action End dev net0
+
+  - name: Com3
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:4::12/64 dev net0
+      - cmd: ip addr add fc00:3::/64 dev lo
+
+      - cmd: ip route add fc00:1::/64 via fd00:0:172:16:2::4
+      - cmd: ip route add fc00:2::/64 via fd00:0:172:16:4::11 
+      - cmd: ip route add fc00:4::/64 via fd00:0:172:16:5::11 
+
+      - cmd: ip route add fc00:3::/128 encap seg6local action End dev net0
+
+  - name: Com4
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:5::11/64 dev net0
+      - cmd: ip addr add fc00:4::0/64 dev lo
+      # 測定したいパス分アドレスを追加する
+      # できれば始点のみの設定で行きたかったけど
+      # マルチパスの設定とかでよしなにできるかも？
+      - cmd: ip addr add fc00:4::10/64 dev lo
+      - cmd: ip addr add fc00:4::11/64 dev lo
+
+  - name: Dummy
+    cmds:
+      - cmd: bash -c "enable_seg6_router.py | sh"
+      - cmd: echo "----------------------------------------"
+      - cmd: ip addr add fd00:0:172:16:5::12/64 dev net0
+      - cmd: ip route add fc00::4/128 via fd00:0:172:16:5::11 
+
+test:
+  - name: tc
+    cmds:
+      - cmd: docker exec Com3 tc qdisc add dev net0 root handle 1:0 tbf rate 50mbit burst 25kb limit 250kb
+  - name: iperf
+    cmds:
+      - cmd: docker exec Com3 iperf3 -s &
+      - cmd: docker exec Dummy iperf3 -c  fd00:0:172:16:4::12 -l 1500 -t 10 -P 5 -b 1000M --logfile result.txt &
+
+
