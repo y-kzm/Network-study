@@ -1,3 +1,0 @@
-![](topo.jpg)
-
-![](traceroute.png)
