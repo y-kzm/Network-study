@@ -1,2 +1,1 @@
-# Network-Study using tinet.
-- tinet: https://github.com/tinynetwork/tinet
+- Repository for learning about network protocols using [tinet](https://github.com/tinynetwork/tinet)

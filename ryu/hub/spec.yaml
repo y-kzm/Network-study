@@ -1,0 +1,54 @@
+
+nodes:
+  - name: C0
+    image: yykzm/ubuntu:ryu
+    interfaces:
+      - { name: net0, type: direct, args: S0#net0 }
+  - name: S0
+    image: slankdev/ovs
+    interfaces:
+      - { name: net0, type: direct, args: C0#net0 }
+      - { name: net1, type: direct, args: H1#net0 }
+      - { name: net2, type: direct, args: H2#net0 }
+      - { name: net3, type: direct, args: H3#net0 }
+  - name: H1
+    image: slankdev/ubuntu:18.04
+    interfaces:
+      - { name: net0, type: direct, args: S0#net1 }
+  - name: H2
+    image: slankdev/ubuntu:18.04
+    interfaces:
+      - { name: net0, type: direct, args: S0#net2 }
+  - name: H3
+    image: slankdev/ubuntu:18.04
+    interfaces:
+      - { name: net0, type: direct, args: S0#net3 }
+
+node_configs:
+  - name: C0
+    cmds:
+      - cmd: ip addr add 192.168.10.1/30 dev net0
+  - name: S0
+    cmds:
+      - cmd: ip addr add 192.168.10.2/30 dev net0
+      - cmd: ovs-vsctl add-br br0
+      - cmd: ovs-vsctl add-port br0 net1
+      - cmd: ovs-vsctl add-port br0 net2
+      - cmd: ovs-vsctl add-port br0 net3
+      - cmd: ovs-vsctl set-controller br0 tcp:192.168.10.1:6633
+      - cmd: ovs-vsctl set bridge br0 other-config:datapath-id=0000000000000001
+      - cmd: ovs-vsctl set Bridge br0 protocols=OpenFlow13
+      - cmd: ovs-ofctl -O OpenFlow13 dump-flows br0
+  - name: H1
+    cmds:
+      - cmd: ip addr add 192.168.20.1/24 dev net0
+  - name: H2
+    cmds:
+      - cmd: ip addr add 192.168.20.2/24 dev net0
+  - name: H3
+    cmds:
+      - cmd: ip addr add 192.168.20.3/24 dev net0
+
+test:
+  - cmds:
+      - cmd: docker exec H1 ping -c2 192.168.20.2

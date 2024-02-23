@@ -1,0 +1,309 @@
+
+nodes:
+  - name: R1
+    image: slankdev/frr
+    interfaces:
+      - { name: net0, type: bridge, args: Bridge0 }
+      - { name: net1, type: direct, args: R3#net1 }
+      - { name: net2, type: direct, args: R2#net0 }
+  - name: R2
+    image: yykzm/frr:dev
+    interfaces:
+      - { name: net0, type: direct, args: R1#net2 }
+      - { name: net2, type: direct, args: R4#net2 }
+      - { name: net3, type: bridge, args: Bridge1 }
+  - name: R3
+    image: slankdev/frr
+    interfaces:
+      - { name: net0, type: bridge, args: Bridge0 }
+      - { name: net1, type: direct, args: R1#net1 }
+      - { name: net2, type: direct, args: R4#net0 }
+  - name: R4
+    image: yykzm/frr:dev
+    interfaces:
+      - { name: net0, type: direct, args: R3#net2 }
+      - { name: net2, type: direct, args: R2#net2 }
+      - { name: net3, type: bridge, args: Bridge1 }
+  - name: R5
+    image: slankdev/frr
+    interfaces:
+      - { name: net0, type: bridge, args: Bridge0 }
+      # インターネットへの接続性を得る
+      - { name: eno1, type: phys } 
+  - name: R6  # クライアント
+    image: slankdev/frr
+    interfaces:
+      - { name: net0, type: bridge, args: Bridge1 }
+
+switches:
+  - name: Bridge0
+    interfaces:
+      - {name: net0, type: docker, args: R5 }
+      - {name: net0, type: docker, args: R1 }
+      - {name: net0, type: docker, args: R3 }
+  - name: Bridge1
+    interfaces:
+      - {name: net0, type: docker, args: R6 }
+      - {name: net3, type: docker, args: R2 }
+      - {name: net3, type: docker, args: R4 }
+
+node_configs:
+  - name: R1
+    cmds:
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.1/32'
+          -c ' ip ospf cost 1'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 10.0.255.2/24'
+          -c 'exit'
+          -c 'interface net1'
+          -c ' ip address 10.0.1.1/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'interface net2'
+          -c ' ip address 10.0.1.5/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'router ospf'
+          -c ' ospf router-id 10.0.0.1'
+          -c ' network 10.0.1.0/30 area 0.0.0.0'
+          -c ' network 10.0.1.4/30 area 0.0.0.0'
+          -c ' network 10.0.0.1/32 area 0.0.0.0'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.1'
+          -c ' neighbor 10.0.0.2 remote-as 65002'   
+          -c ' neighbor 10.0.0.2 update-source lo'  
+          -c ' neighbor 10.0.0.3 remote-as 65002'   
+          -c ' neighbor 10.0.0.3 update-source lo'
+          -c ' neighbor 10.0.0.4 remote-as 65002' 
+          -c ' neighbor 10.0.0.4 update-source lo'
+          -c ' neighbor 10.0.255.1 remote-as 65001'
+          -c ' address-family ipv4 unicast'
+          -c '  network 10.0.0.0/8'
+          -c '  network 192.168.0.0/16'
+          -c ' exit-address-family'
+          -c 'exit'
+  - name: R2
+    cmds:
+      # VRRP によるdefault routeの冗長化
+      - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf 
+      - cmd: ip link add vrrp_r2 link net3 addrgenmode random type macvlan mode bridge
+      - cmd: ip link set dev vrrp_r2 address 00:00:5e:00:01:05
+      - cmd: ip addr add 192.168.1.1/24 dev vrrp_r2
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'ip route 10.0.0.6/32 192.168.1.4'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.2/32'
+          -c ' ip ospf cost 1'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 10.0.1.6/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'interface net2'
+          -c ' ip address 10.0.1.21/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'interface net3'
+          -c ' ip address 192.168.1.2/24'
+          -c ' vrrp 5'
+          -c ' vrrp 5 priority 140'
+          -c ' vrrp 5 ip 192.168.1.1'
+          -c 'exit'
+          -c 'router ospf'
+          -c ' ospf router-id 10.0.0.2'
+          -c ' redistribute kernel'
+          -c ' redistribute static'
+          -c ' redistribute connected'
+          -c ' network 10.0.1.4/30 area 0.0.0.0'
+          -c ' network 10.0.1.20/30 area 0.0.0.0'
+          -c ' network 10.0.0.2/32 area 0.0.0.0'
+          -c 'exit'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.2'
+          -c ' neighbor 10.0.0.1 remote-as 65002'
+          -c ' neighbor 10.0.0.1 update-source lo'
+          -c ' neighbor 10.0.0.3 remote-as 65002'
+          -c ' neighbor 10.0.0.3 update-source lo'
+          -c ' neighbor 10.0.0.4 remote-as 65002'
+          -c ' neighbor 10.0.0.4 update-source lo'
+          -c 'exit'
+  - name: R3
+    cmds:
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.3/32'
+          -c ' ip ospf cost 1'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 10.0.255.3/24'
+          -c 'exit'
+          -c 'interface net1'
+          -c ' ip address 10.0.1.2/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'interface net2'
+          -c ' ip address 10.0.1.13/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 100'
+          -c 'exit'
+          -c 'router ospf'
+          -c ' ospf router-id 10.0.0.3'
+          -c ' network 10.0.1.0/30 area 0.0.0.0'
+          -c ' network 10.0.1.12/30 area 0.0.0.0'
+          -c ' network 10.0.0.3/32 area 0.0.0.0'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.3'
+          -c ' neighbor 10.0.0.1 remote-as 65002'   
+          -c ' neighbor 10.0.0.1 update-source lo'  
+          -c ' neighbor 10.0.0.2 remote-as 65002'   
+          -c ' neighbor 10.0.0.2 update-source lo'
+          -c ' neighbor 10.0.0.4 remote-as 65002'  
+          -c ' neighbor 10.0.0.4 update-source lo'
+          -c 'exit'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.3'
+          -c ' neighbor 10.0.255.1 remote-as 65001' 
+          -c ' address-family ipv4 unicast'
+          -c '  network 10.0.0.0/8'
+          -c '  network 192.168.0.0/16'
+          -c ' exit-address-family'
+  - name: R4
+    cmds:
+      - cmd: cp /etc/frr/vtysh.conf.sample /etc/frr/vtysh.conf 
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'ip route 10.0.0.6/32 192.168.1.4'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.4/32'
+          -c ' ip ospf cost 1'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 10.0.1.14/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 100'
+          -c 'exit'
+          -c 'interface net2'
+          -c ' ip address 10.0.1.22/30'
+          -c ' ip ospf network point-to-point'
+          -c ' ip ospf cost 10'
+          -c 'exit'
+          -c 'interface net3'
+          -c ' ip address 192.168.1.3/24'
+          -c ' vrrp 5'
+          -c ' vrrp 5 priority 100'
+          -c ' vrrp 5 ip 192.168.1.1'
+          -c 'exit'
+          -c 'router ospf'
+          -c ' ospf router-id 10.0.0.4'
+          -c ' redistribute static'
+          -c ' redistribute connected'
+          -c ' network 10.0.1.12/30 area 0.0.0.0'
+          -c ' network 10.0.1.20/30 area 0.0.0.0'
+          -c ' network 10.0.0.4/32 area 0.0.0.0'
+          -c 'router bgp 65002'
+          -c ' bgp router-id 10.0.0.4'
+          -c ' neighbor 10.0.0.1 remote-as 65002'
+          -c ' neighbor 10.0.0.1 update-source lo'
+          -c ' neighbor 10.0.0.2 remote-as 65002'
+          -c ' neighbor 10.0.0.2 update-source lo'
+          -c ' neighbor 10.0.0.3 remote-as 65002'
+          -c ' neighbor 10.0.0.3 update-source lo'
+          -c 'exit'
+  - name: R5
+    cmds:
+      # Host Interface の設定
+      - cmd: ip addr add 172.17.0.5/16 dev eno1
+      - cmd: ip route add default via 10.0.0.1 dev eno1
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.5/32'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 10.0.255.1/24'
+          -c 'exit'
+          -c 'router bgp 65001'
+          -c ' bgp router-id 10.0.0.5'
+          -c ' neighbor 10.0.255.2 remote-as 65002'  
+          -c ' neighbor 10.0.255.3 remote-as 65002'  
+          -c ' address-family ipv4 unicast'
+          -c '  redistribute kernel' 
+          -c ' exit-address-family'
+          -c 'exit'
+  - name: R6
+    cmds:
+      - cmd: /usr/lib/frr/frr start 
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface lo'
+          -c ' ip address 10.0.0.6/32'
+          -c 'exit'
+          -c 'interface net0'
+          -c ' ip address 192.168.1.4/24'
+          -c 'exit'
+      # 192.168.1.1がVIP
+      - cmd: ip route add default via 192.168.1.1 dev net0
+
+
+test:
+  - name: p2p
+    cmds:
+      - cmd: docker exec R1 ping -c2 10.0.255.1
+      - cmd: docker exec R1 ping -c2 10.0.255.3
+      - cmd: docker exec R1 ping -c2 10.0.1.2
+      - cmd: docker exec R1 ping -c2 10.0.1.6
+      - cmd: docker exec R2 ping -c2 192.168.1.4
+      - cmd: docker exec R2 ping -c2 192.168.1.3
+      - cmd: docker exec R2 ping -c2 10.0.1.22
+      - cmd: docker exec R2 ping -c2 10.0.1.5
+      - cmd: docker exec R3 ping -c2 10.0.255.1
+      - cmd: docker exec R3 ping -c2 10.0.255.2
+      - cmd: docker exec R3 ping -c2 10.0.1.1
+      - cmd: docker exec R3 ping -c2 10.0.1.14
+      - cmd: docker exec R4 ping -c2 192.168.1.4
+      - cmd: docker exec R4 ping -c2 192.168.1.2
+      - cmd: docker exec R4 ping -c2 10.0.1.21
+      - cmd: docker exec R4 ping -c2 10.0.1.13
+      - cmd: docker exec R5 ping -c2 10.0.255.2
+      - cmd: docker exec R5 ping -c2 10.0.255.3
+      - cmd: docker exec R6 ping -c2 192.168.1.2
+      - cmd: docker exec R6 ping -c2 192.168.1.3
+
+  - name: remote
+    cmds:
+      - cmd: docker exec R1 ping -c2 10.0.1.14
+      - cmd: docker exec R1 ping -c2 10.0.1.22
+      - cmd: docker exec R2 ping -c2 10.0.1.2
+      - cmd: docker exec R2 ping -c2 10.0.1.13
+      - cmd: docker exec R3 ping -c2 10.0.1.6
+      - cmd: docker exec R3 ping -c2 10.0.1.21
+      - cmd: docker exec R4 ping -c2 10.0.1.1
+      - cmd: docker exec R4 ping -c2 10.0.1.5
+      
+
+
+
+
+
+
+
+
+
+
+  
