@@ -1,0 +1,186 @@
+preinit:
+  - cmds:
+    - cmd: modprobe mpls_router
+    - cmd: modprobe mpls_gso
+    - cmd: modprobe mpls_iptunnel
+
+nodes:
+  - name: ASBR-MPLS-1
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: PE-MPLS-1#net0 }
+    - { name: net1, type: direct, args: ASBR-MPLS-2#net0 }
+  - name: ASBR-MPLS-2
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-MPLS-1#net1 }
+    - { name: net1, type: direct, args: PE-MPLS-2#net0 }
+  - name: PE-MPLS-1
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-MPLS-1#net0 }
+    - { name: net1, type: direct, args: CE-1#net0 }
+  - name: PE-MPLS-2
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-MPLS-2#net1 }
+    - { name: net1, type: direct, args: CE-2#net0 }
+  - name: CE-1
+    image: yykzm/ubuntu:20.04
+    interfaces:
+    - { name: net0, type: direct, args: PE-MPLS-1#net1 }
+  - name: CE-2
+    image: yykzm/ubuntu:20.04
+    interfaces:
+    - { name: net0, type: direct, args: PE-MPLS-2#net1 }
+
+node_configs:
+  - name: ASBR-MPLS-1
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+      
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.1.2.2/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c 'interface net1'
+          -c '  ip address 10.100.1.1/30'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.2/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::2/128'
+          -c '  isis passive'
+          -c 'exit'
+
+  
+  - name: ASBR-MPLS-2
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.100.1.2/30'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c 'interface net1'
+          -c '  ip address 10.2.2.2/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.3/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::3/128'
+          -c '  isis passive'
+          -c 'exit'
+
+  - name: PE-MPLS-1
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: ip link set net1 vrf USER-1
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.1.2.1/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c 'exit
+          -c 'interface net1'
+          -c '  ip address 192.168.1.254/24'
+          -c 'exit'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.1/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::1/128'
+          -c '  isis passive'
+          -c 'exit'
+
+  - name: PE-MPLS-2
+    cmds:
+      - cmd: /usr/lib/frr/frr start
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: ip link set net1 vrf USER-1
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.2.2.1/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c 'exit
+          -c 'interface net1'
+          -c '  ip address 192.168.2.254/24'
+          -c 'exit'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.4/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::4/128'
+          -c '  isis passive'
+          -c 'exit'
+
+  - name: CE-1
+    cmds:
+      - cmd: ip addr add 192.168.1.254/24 dev net0
+      - cmd: ip route add default via 192.168.1.1
+
+  - name: CE-2
+    cmds:
+      - cmd: ip addr add 192.168.2.254/24 dev net0
+      - cmd: ip route add default via 192.168.2.1
+
+test:
+  - name: p2p
+    cmds:
+      - cmd: docker exec CE-1         ping -c 3 192.168.1.254
+      - cmd: docker exec PE-MPLS-1    ping -c 3 10.1.2.2
+      - cmd: docker exec ASBR-MPLS-1  ping -c 3 10.100.1.2
+      - cmd: docker exec ASBR-MPLS-2  ping -c 3 10.2.2.1
+      - cmd: docker exec PE-MPLS-2    ping -c 3 192.168.2.1
