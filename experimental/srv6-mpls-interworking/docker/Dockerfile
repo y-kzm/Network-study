@@ -59,7 +59,7 @@ RUN cd && pwd && ls -al && \
     git clone https://github.com/CESNET/libyang.git && \
     cd libyang && \
     git checkout v2.1.128 && \
-    mkdir build; cd build && \
+    mkdir build && cd build && \
     cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr \
           -DCMAKE_BUILD_TYPE:String="Release" .. && \
     make -j $(nproc) && \

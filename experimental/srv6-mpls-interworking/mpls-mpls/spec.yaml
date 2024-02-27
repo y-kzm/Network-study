@@ -37,7 +37,6 @@ nodes:
 node_configs:
   - name: ASBR-MPLS-1
     cmds:
-      - cmd: /usr/lib/frr/frr start
       - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
@@ -71,7 +70,6 @@ node_configs:
   
   - name: ASBR-MPLS-2
     cmds:
-      - cmd: /usr/lib/frr/frr start
       - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
@@ -104,7 +102,6 @@ node_configs:
 
   - name: PE-MPLS-1
     cmds:
-      - cmd: /usr/lib/frr/frr start
       - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
@@ -123,9 +120,9 @@ node_configs:
           -c '  ip address 10.1.2.1/30'
           -c '  ip router isis 1'
           -c '  isis network point-to-point'
-          -c 'exit
+          -c 'exit'
           -c 'interface net1'
-          -c '  ip address 192.168.1.254/24'
+          -c '  ip address 192.168.1.1/24'
           -c 'exit'
           -c 'interface lo'
           -c '  ip address 10.255.1.1/32'
@@ -136,7 +133,6 @@ node_configs:
 
   - name: PE-MPLS-2
     cmds:
-      - cmd: /usr/lib/frr/frr start
       - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
@@ -155,9 +151,9 @@ node_configs:
           -c '  ip address 10.2.2.1/30'
           -c '  ip router isis 1'
           -c '  isis network point-to-point'
-          -c 'exit
+          -c 'exit'
           -c 'interface net1'
-          -c '  ip address 192.168.2.254/24'
+          -c '  ip address 192.168.2.1/24'
           -c 'exit'
           -c 'interface lo'
           -c '  ip address 10.255.1.4/32'
@@ -179,8 +175,8 @@ node_configs:
 test:
   - name: p2p
     cmds:
-      - cmd: docker exec CE-1         ping -c 3 192.168.1.254
+      - cmd: docker exec CE-1         ping -c 3 192.168.1.1
       - cmd: docker exec PE-MPLS-1    ping -c 3 10.1.2.2
       - cmd: docker exec ASBR-MPLS-1  ping -c 3 10.100.1.2
       - cmd: docker exec ASBR-MPLS-2  ping -c 3 10.2.2.1
-      - cmd: docker exec PE-MPLS-2    ping -c 3 192.168.2.1
+      - cmd: docker exec PE-MPLS-2    ping -c 3 192.168.2.254 -I net1
