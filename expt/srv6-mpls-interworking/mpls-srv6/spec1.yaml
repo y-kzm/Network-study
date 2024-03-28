@@ -1,0 +1,386 @@
+preinit:
+  - cmds:
+    - cmd: modprobe mpls_router
+    - cmd: modprobe mpls_gso
+    - cmd: modprobe mpls_iptunnel
+
+nodes:
+  - name: ASBR-MPLS
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: PE-MPLS#net0 }
+    - { name: net1, type: direct, args: ASBR-SRv6#net0 }
+  - name: ASBR-SRv6
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-MPLS#net1 }
+    - { name: net1, type: direct, args: PE-SRv6#net0 }
+  - name: PE-MPLS
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-MPLS#net0 }
+    - { name: net1, type: direct, args: CE-1#net0 }
+  - name: PE-SRv6
+    image: yykzm/frr:v9.2
+    interfaces:
+    - { name: net0, type: direct, args: ASBR-SRv6#net1 }
+    - { name: net1, type: direct, args: CE-2#net0 }
+  - name: CE-1
+    image: yykzm/ubuntu:20.04
+    interfaces:
+    - { name: net0, type: direct, args: PE-MPLS#net1 }
+  - name: CE-2
+    image: yykzm/ubuntu:20.04
+    interfaces:
+    - { name: net0, type: direct, args: PE-SRv6#net1 }
+
+node_configs:
+  - name: ASBR-MPLS
+    cmds:
+      #- cmd: tcpdump -i net0 -w /tmp/ASBR-MPLS-1-net0.pcap &
+      #- cmd: tcpdump -i net1 -w /tmp/ASBR-MPLS-1-net1.pcap &
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+      
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.1.2.2/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c '!'
+          -c 'interface net1'
+          -c '  ip address 10.100.1.1/30'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c '!'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.2/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::2/128'
+          -c '  isis passive'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65001'
+          -c '  bgp router-id 10.255.1.2'
+          -c '  no bgp default ipv4-unicast'
+          -c '  neighbor 10.100.1.2 remote-as 65002'
+          -c '  neighbor 10.255.1.1 remote-as 65001'
+          -c '  neighbor 10.255.1.1 update-source lo'
+          -c '  !'
+          -c '  address-family ipv4 unicast'
+          -c '    redistribute connected'
+          -c '  exit-address-family'
+          -c '  !'
+          -c '  address-family ipv4 labeled-unicast'
+          -c '    neighbor 10.100.1.2 activate'
+          -c '  exit-address-family'
+          -c '  !'
+          -c '  address-family ipv4 vpn'
+          -c '    neighbor 10.100.1.2 activate'
+          -c '    neighbor 10.100.1.2 soft-reconfiguration inbound'
+          -c '    neighbor 10.100.1.2 route-map pass-all in'
+          -c '    neighbor 10.100.1.2 route-map pass-all out'
+          -c '    neighbor 10.255.1.1 activate'
+          -c '    neighbor 10.255.1.1 next-hop-self'
+          -c '    neighbor 10.255.1.1 soft-reconfiguration inbound'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65001 vrf USER-1'
+          -c '  address-family ipv4 unicast'
+          -c '    route-map vpn import pass-all'
+          -c '    rd vpn export 65001:100'
+          -c '    rt vpn both 64999:100'
+          -c '    export vpn'
+          -c '    import vpn'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router isis 1'
+          -c '  is-type level-2-only'
+          -c '  net 49.0000.0000.0aff.0102.00'
+          -c '  mpls-te on'
+          -c '  segment-routing on'
+          -c '  segment-routing node-msd 8'
+          -c '  segment-routing prefix 10.255.1.2/32 index 2'
+          -c 'exit'
+          -c '!'
+          -c 'route-map pass-all permit 10'
+          -c 'exit'
+          -c '!'
+  
+  - name: ASBR-SRv6
+    cmds:
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+      - cmd: bash -c "enable_seg6_router.py | sh"
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'ipv6 route fd00:0:0:33::/64 Null0'
+          -c 'interface net0'
+          -c '  ip address 10.100.1.2/30'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c '!'
+          -c 'interface net1'
+          -c '  ipv6 router isis 1'
+          -c '  isis network point-to-point'
+          -c '  mpls bgp l3vpn-multi-domain-switching'
+          -c 'exit'
+          -c '!'
+          -c 'interface lo'
+          -c '  ipv6 address fd00::3/128'
+          -c '  ipv6 router isis 1'
+          -c '  isis passive'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65002'
+          -c '  bgp router-id 10.255.1.3'
+          -c '  no bgp default ipv4-unicast'
+          -c '  neighbor 10.100.1.1 remote-as 65001'
+          -c '  neighbor fd00::4 remote-as 65002'
+          -c '  neighbor fd00::4 update-source lo'
+          -c '  neighbor fd00::4 capability extended-nexthop'
+          -c '  !'
+          -c '  segment-routing srv6'
+          -c '    locator Loc1'
+          -c '  exit'
+          -c '  !'
+          -c '  address-family ipv4 vpn'
+          -c '    neighbor 10.100.1.1 activate'
+          -c '    neighbor 10.100.1.1 soft-reconfiguration inbound'
+          -c '    neighbor 10.100.1.1 route-map pass-all in'
+          -c '    neighbor 10.100.1.1 route-map pass-all out'
+          -c '    neighbor fd00::4 activate'
+          -c '    neighbor fd00::4 soft-reconfiguration inbound'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65002 vrf USER-1'
+          -c '  address-family ipv4 unicast'
+          -c '    sid vpn export 1'
+          -c '    route-map vpn import pass-all'
+          -c '    rd vpn export 65002:100'
+          -c '    rt vpn both 64999:100'
+          -c '    export vpn'
+          -c '    import vpn'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router isis 1'
+          -c '  is-type level-2-only'
+          -c '  net 49.0000.0000.0aff.0103.00'
+          -c '  redistribute ipv6 static level-2'
+          -c '  topology ipv6-unicast'
+          -c '  segment-routing on'
+          -c 'exit'
+          -c '!'
+          -c 'route-map pass-all permit 10'
+          -c 'exit'
+          -c '!'
+          -c 'segment-routing'
+          -c '  srv6'
+          -c '   locators'
+          -c '     locator Loc1'
+          -c '       prefix fd00:0:0:33::/64 block-len 40 node-len 24 func-bits 16'
+          -c '     exit'
+          -c '     !'
+          -c '   exit'
+          -c '   !'
+          -c ' exit'
+          -c ' !'
+          -c 'exit'
+          -c '!'
+
+  - name: PE-MPLS
+    cmds:
+      # - cmd: tcpdump -i net0 -w /tmp/PE-MPLS-net0.pcap &
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w net.mpls.conf.lo.input=1
+      - cmd: sysctl -w net.mpls.conf.net0.input=1
+      - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: ip link set net1 vrf USER-1
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'interface net0'
+          -c '  ip address 10.1.2.1/30'
+          -c '  ip router isis 1'
+          -c '  isis network point-to-point'
+          -c 'exit'
+          -c '!'
+          -c 'interface net1'
+          -c '  ip address 192.168.1.1/24'
+          -c 'exit'
+          -c '!'
+          -c 'interface lo'
+          -c '  ip address 10.255.1.1/32'
+          -c '  ip router isis 1'
+          -c '  ipv6 address fd00::1/128'
+          -c '  isis passive'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65001'
+          -c '  bgp router-id 10.255.1.1'
+          -c '  no bgp default ipv4-unicast'
+          -c '  neighbor 10.255.1.2 remote-as 65001'
+          -c '  neighbor 10.255.1.2 update-source lo'
+          -c '  !'
+          -c '  address-family ipv4 unicast'
+          -c '    neighbor 10.255.1.2 activate'
+          -c '  exit-address-family'
+          -c '  !'
+          -c '  address-family ipv4 vpn'
+          -c '    neighbor 10.255.1.2 activate'
+          -c '    neighbor 10.255.1.2 soft-reconfiguration inbound'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65001 vrf USER-1'
+          -c '  !'
+          -c '  address-family ipv4 unicast'
+          -c '    redistribute connected'
+          -c '    label vpn export 111'
+          -c '    rd vpn export 65001:100'
+          -c '    rt vpn both 64999:100'
+          -c '    export vpn'
+          -c '    import vpn'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router isis 1'
+          -c '  is-type level-2-only'
+          -c '  net 49.0000.0000.0aff.0101.00'
+          -c '  mpls-te on'
+          -c '  segment-routing on'
+          -c '  segment-routing node-msd 8'
+          -c '  segment-routing prefix 10.255.1.1/32 index 1'
+          -c 'exit'
+          -c '!'
+
+  - name: PE-SRv6
+    cmds:
+      - cmd: sed -i -e 's/=no/=yes/g' /etc/frr/daemons
+      - cmd: /usr/lib/frr/frrinit.sh restart
+      - cmd: sysctl -w net.ipv4.ip_forward=1
+      - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: bash -c "enable_seg6_router.py | sh"
+
+      - cmd: ip link add USER-1 type vrf table 100
+      - cmd: ip link set USER-1 up
+      - cmd: ip link set net1 vrf USER-1
+      - cmd: >-
+          vtysh -c 'conf t'
+          -c 'ipv6 route fd00:0:0:44::/64 Null0'
+          -c 'interface net0'
+          -c '  ipv6 router isis 1'
+          -c '  isis network point-to-point'
+          -c 'exit'
+          -c '!'
+          -c 'interface net1'
+          -c '  ip address 192.168.2.1/24'
+          -c 'exit'
+          -c '!'
+          -c 'interface lo'
+          -c '  ipv6 address fd00::4/128'
+          -c '  ipv6 router isis 1'
+          -c '  isis passive'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65002'
+          -c '  bgp router-id 10.255.1.4'
+          -c '  no bgp default ipv4-unicast'
+          -c '  neighbor fd00::3 remote-as 65002'
+          -c '  neighbor fd00::3 update-source lo'
+          -c '  neighbor fd00::3 capability extended-nexthop'
+          -c '  !'
+          -c '  segment-routing srv6'
+          -c '    locator Loc1'
+          -c '  exit'
+          -c '  !'        
+          -c '  address-family ipv4 vpn'
+          -c '    neighbor fd00::3 activate'
+          -c '    neighbor fd00::3 soft-reconfiguration inbound'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router bgp 65002 vrf USER-1'
+          -c '  !'
+          -c '  address-family ipv4 unicast'
+          -c '    redistribute connected'
+          -c '    sid vpn export 1'
+          -c '    nexthop vpn export fd00::4'
+          -c '    rd vpn export 65002:100'
+          -c '    rt vpn both 64999:100'
+          -c '    export vpn'
+          -c '    import vpn'
+          -c '  exit-address-family'
+          -c 'exit'
+          -c '!'
+          -c 'router isis 1'
+          -c '  is-type level-2-only'
+          -c '  net 49.0000.0000.0aff.0104.00'
+          -c '  redistribute ipv6 static level-2'
+          -c '  topology ipv6-unicast'
+          -c '  segment-routing on'
+          -c 'exit'
+          -c '!'
+          -c 'segment-routing'
+          -c '  srv6'
+          -c '    locators'
+          -c '      locator Loc1'
+          -c '        prefix fd00:0:0:44::/64 block-len 40 node-len 24 func-bits 16'
+          -c '      exit'
+          -c '      !'
+          -c '    exit'
+          -c '    !'
+          -c '  exit'
+          -c '  !'
+          -c 'exit'
+          -c '!'
+
+  - name: CE-1
+    cmds:
+      - cmd: ip addr add 192.168.1.254/24 dev net0
+      - cmd: ip route add default via 192.168.1.1
+
+  - name: CE-2
+    cmds:
+      - cmd: ip addr add 192.168.2.254/24 dev net0
+      - cmd: ip route add default via 192.168.2.1
+
+test:
+  - name: p2p
+    cmds:
+      - cmd: echo "--- check p2p connectivity ---"
+      - cmd: docker exec CE-1         ping -c 3 192.168.1.1
+      - cmd: docker exec PE-MPLS      ping -c 3 10.1.2.2
+      - cmd: docker exec ASBR-MPLS    ping -c 3 10.100.1.2
+      #- cmd: docker exec ASBR-SRv6    ping -c 3 10.2.2.1
+      #- cmd: docker exec PE-SRv6      ping -c 3 192.168.2.254 -I net1
