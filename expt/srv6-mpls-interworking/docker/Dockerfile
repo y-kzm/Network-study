@@ -13,7 +13,7 @@ RUN apt update && \
       libcap-dev python2 libelf-dev libprotobuf-c-dev protobuf-c-compiler \
       sudo gdb curl iputils-ping time vim pppoe pppoeconf ethtool iptables \
       lua5.3 liblua5.3-dev iperf3 openvswitch-switch openvswitch-common \
-      net-tools iproute2 wget traceroute && \
+      net-tools iproute2 wget traceroute termshark && \
       curl https://bootstrap.pypa.io/pip/2.7/get-pip.py --output /tmp/get-pip.py && \
       python2 /tmp/get-pip.py && \
       rm -f  /tmp/get-pip.py && \

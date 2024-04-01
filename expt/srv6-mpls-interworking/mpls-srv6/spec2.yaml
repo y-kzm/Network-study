@@ -11,7 +11,7 @@ nodes:
     - { name: net0, type: direct, args: PE-MPLS#net0 }
     - { name: net1, type: direct, args: ASBR-SRv6#net0 }
   - name: ASBR-SRv6
-    image: yykzm/frr:v9.2-dev
+    image: yykzm/frr:v9.2
     interfaces:
     - { name: net0, type: direct, args: ASBR-MPLS#net1 }
     - { name: net1, type: direct, args: PE-SRv6#net0 }
@@ -46,6 +46,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
       
       - cmd: ip link add USER-1 type vrf table 100
@@ -129,6 +130,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
       - cmd: bash -c "enable_seg6_router.py | sh"
 
@@ -165,9 +167,8 @@ node_configs:
           -c '  exit'
           -c '  !'
           -c '  address-family ipv4 vpn'
-          -c '    neighbor 10.100.1.1 activate'
+          -c '    no neighbor 10.100.1.1 activate'
           -c '    neighbor 10.100.1.1 soft-reconfiguration inbound'
-          -c '    neighbor 10.100.1.1 seg6-mpls-label-switching'
           -c '    neighbor 10.100.1.1 route-map pass-all in'
           -c '    neighbor 10.100.1.1 route-map pass-all out'
           -c '    neighbor fd00::4 activate'
@@ -177,7 +178,7 @@ node_configs:
           -c '!'
           -c 'router bgp 65002 vrf USER-1'
           -c '  address-family ipv4 unicast'
-          -c '    label vpn export 222'
+          -c '    label vpn export 81'
           -c '    sid vpn export 16'
           -c '    rd vpn export 65002:100'
           -c '    rt vpn both 64999:100'
@@ -221,6 +222,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
 
       - cmd: ip link add USER-1 type vrf table 100
@@ -289,6 +291,8 @@ node_configs:
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
       - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
       - cmd: bash -c "enable_seg6_router.py | sh"
 
       - cmd: ip link add USER-1 type vrf table 100
@@ -383,3 +387,11 @@ test:
       - cmd: docker exec ASBR-MPLS    ping -c 3 10.100.1.2
       #- cmd: docker exec ASBR-SRv6    ping -c 3 10.2.2.1
       #- cmd: docker exec PE-SRv6      ping -c 3 192.168.2.254 -I net1
+  - name: iproute2
+    cmds:
+      - cmd: echo "--- iproute2 ---"
+      - cmd: docker exec ASBR-MPLS ip -M route add 81 as 81 dev net1 via inet 10.100.1.2
+      - cmd: docker exec PE-MPLS ip route add vrf USER-1 192.168.2.0/24 encap mpls 81 via 10.1.2.2 dev net0 
+      - cmd: docker exec ASBR-SRv6 ip route add vrf USER-1 192.168.1.0/24 encap mpls 80 via 10.100.1.1 dev net0
+      - cmd: >-
+          docker exec PE-SRv6 ip route add vrf USER-1 192.168.1.0/24 encap seg6 mode encap segs fd00:0:0:33:10:: dev net0

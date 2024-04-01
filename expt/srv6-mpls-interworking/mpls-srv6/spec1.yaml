@@ -46,6 +46,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
       
       - cmd: ip link add USER-1 type vrf table 100
@@ -129,6 +130,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
       - cmd: bash -c "enable_seg6_router.py | sh"
 
@@ -139,13 +141,11 @@ node_configs:
           -c 'ipv6 route fd00:0:0:33::/64 Null0'
           -c 'interface net0'
           -c '  ip address 10.100.1.2/30'
-          -c '  mpls bgp l3vpn-multi-domain-switching'
           -c 'exit'
           -c '!'
           -c 'interface net1'
           -c '  ipv6 router isis 1'
           -c '  isis network point-to-point'
-          -c '  mpls bgp l3vpn-multi-domain-switching'
           -c 'exit'
           -c '!'
           -c 'interface lo'
@@ -178,8 +178,8 @@ node_configs:
           -c '!'
           -c 'router bgp 65002 vrf USER-1'
           -c '  address-family ipv4 unicast'
-          -c '    sid vpn export 1'
-          -c '    route-map vpn import pass-all'
+          -c '    label vpn export 81'
+          -c '    sid vpn export 16'
           -c '    rd vpn export 65002:100'
           -c '    rt vpn both 64999:100'
           -c '    export vpn'
@@ -222,6 +222,7 @@ node_configs:
       - cmd: sysctl -w net.mpls.conf.lo.input=1
       - cmd: sysctl -w net.mpls.conf.net0.input=1
       - cmd: sysctl -w net.mpls.conf.net1.input=1
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
       - cmd: sysctl -w net.mpls.platform_labels=1048575
 
       - cmd: ip link add USER-1 type vrf table 100
@@ -290,6 +291,8 @@ node_configs:
       - cmd: /usr/lib/frr/frrinit.sh restart
       - cmd: sysctl -w net.ipv4.ip_forward=1
       - cmd: systcl -w net.ipv4.conf.all.rp_filter=0
+      - cmd: sysctl -w 'net.vrf.strict_mode=1'
+      - cmd: sysctl -w net.mpls.platform_labels=1048575
       - cmd: bash -c "enable_seg6_router.py | sh"
 
       - cmd: ip link add USER-1 type vrf table 100
@@ -334,7 +337,7 @@ node_configs:
           -c '  !'
           -c '  address-family ipv4 unicast'
           -c '    redistribute connected'
-          -c '    sid vpn export 1'
+          -c '    sid vpn export 16'
           -c '    nexthop vpn export fd00::4'
           -c '    rd vpn export 65002:100'
           -c '    rt vpn both 64999:100'
